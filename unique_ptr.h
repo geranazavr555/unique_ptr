@@ -3,18 +3,10 @@
 
 #include <memory>
 
-namespace {
-    template <typename T>
-    struct pointer
-    {
-        using type = T*;
-    };
-}
-
 template <typename T>
 class unique_ptr
 {
-    using PointerType = typename pointer<T>::type;
+    using PointerType = T*;
 
 private:
     class DeleterStorageTypeBase
@@ -33,7 +25,7 @@ private:
         DeleterType deleter;
 
     public:
-        DeleterStorageType(DeleterType deleter) : deleter(deleter) {};
+        DeleterStorageType(DeleterType&& deleter) : deleter(std::forward<DeleterType>(deleter)) {};
         void invoke_deleter(PointerType ptr)
         {
             deleter(ptr);
@@ -44,12 +36,11 @@ private:
     {
         if (ptr && !deleter_storage)
             delete ptr;
-        else if (ptr && deleter_storage)
+        else if (deleter_storage)
         {
             deleter_storage->invoke_deleter(ptr);
             delete deleter_storage;
-        } else if (deleter_storage)
-            delete deleter_storage;
+        }
     }
 
 public:
@@ -64,9 +55,9 @@ public:
     }
 
     template <typename DeleterType>
-    unique_ptr(PointerType ptr, DeleterType deleter = std::default_delete<T>()) :
+    unique_ptr(PointerType ptr, DeleterType&& deleter = std::default_delete<T>()) :
         ptr(ptr),
-        deleter_storage(new DeleterStorageType<DeleterType>(deleter))
+        deleter_storage(new DeleterStorageType<DeleterType>(std::forward<DeleterType>(deleter)))
     {}
     unique_ptr(PointerType ptr) noexcept :
         ptr(ptr),
@@ -98,11 +89,11 @@ public:
     }
 
     template <typename DeleterType = std::default_delete<T>>
-    void reset(PointerType ptr = nullptr, DeleterType deleter = DeleterType())
+    void reset(PointerType ptr = nullptr, DeleterType&& deleter = DeleterType())
     {
         destroy();
         this->ptr = ptr;
-        this->deleter_storage = new DeleterStorageType(deleter);
+        this->deleter_storage = new DeleterStorageType<DeleterType>(std::forward<DeleterType>(deleter));
     }
 
     void swap(unique_ptr<T>& other) noexcept
